@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="TBSラジオ「空気階段の踊り場」で流れた曲の記録">
-<title>空気階段の踊り場 オンエア曲一覧</title>
+<meta name="description" content="ラジオ番組で流れた曲の記録">
+<title>オンエア曲一覧</title>
 <style>
   :root {
     --bg: #f6f6f3;
@@ -49,6 +49,24 @@
   .header h1 { margin: 0; font-size: 1.6rem; }
   .lead { margin: 4px 0 20px; color: var(--text-muted); }
   .note { display: block; font-size: 0.85rem; }
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--border);
+  }
+  .tabs a {
+    padding: 8px 12px;
+    border-bottom: 2px solid transparent;
+    color: var(--text-muted);
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .tabs a:hover { color: var(--text); }
+  .tabs a:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .tabs a[aria-current] { border-bottom-color: var(--accent); color: var(--text); }
   .card {
     margin-bottom: 16px;
     padding: 16px;
@@ -115,12 +133,15 @@
 <body>
   <div class="page">
     <header class="header">
-      <h1>空気階段の踊り場 オンエア曲一覧</h1>
+      <h1 id="title"></h1>
       <p class="lead">
-        TBSラジオ「空気階段の踊り場」で流れた曲の記録
+        <span id="lead"></span>
+        <span class="note" id="caveat"></span>
         <span class="note" id="period"></span>
       </p>
     </header>
+
+    <nav class="tabs" id="tabs" aria-label="番組"></nav>
 
     <section class="card filters" id="filters-card" hidden>
       <div class="filter-grid" id="filters"></div>
@@ -146,7 +167,24 @@
 
   <script>
     // CSV を更新するだけで一覧へ反映されるよう、表示時に読み込む。
-    const CSV_PATH = "data/onair_songs.csv";
+    const PROGRAMS = [
+      {
+        id: "odoriba",
+        name: "空気階段の踊り場",
+        tab: "空気階段の踊り場",
+        station: "TBSラジオ",
+        csv: "data/onair_songs.csv",
+      },
+      {
+        id: "ann0",
+        name: "マヂカルラブリーのオールナイトニッポン0(ZERO)",
+        tab: "マヂカルラブリーのANN0",
+        station: "ニッポン放送",
+        csv: "data/magical_lovely_ann0_songs.csv",
+        caveat: "ファンサイト、Spotify、Xの投稿をもとにした記録で、推定や抜け漏れを含みます。",
+        hiddenColumns: ["情報源"],
+      },
+    ];
     // プルダウンで絞り込む列。その他の列は文字の部分一致で絞り込む。
     const SELECT_COLUMNS = new Set(["選曲者"]);
     const NOWRAP_COLUMNS = new Set(["オンエア日", "選曲者"]);
@@ -235,14 +273,42 @@
       return label;
     }
 
-    async function main() {
+    function resetPage(program) {
+      document.title = `${program.name} オンエア曲一覧`;
+      document.getElementById("title").textContent = `${program.name} オンエア曲一覧`;
+      document.getElementById("lead").textContent = `${program.station}「${program.name}」で流れた曲の記録`;
+      document.getElementById("caveat").textContent = program.caveat ?? "";
+      document.getElementById("period").textContent = "";
+      document.getElementById("count").textContent = "";
+      document.getElementById("head").replaceChildren();
+      document.getElementById("filters").replaceChildren();
+      document.getElementById("body").replaceChildren();
+      document.querySelector("table").hidden = true;
+      document.getElementById("filters-card").hidden = true;
+      document.querySelectorAll("#tabs a").forEach((tab) => {
+        if (tab.hash === `#${program.id}`) tab.setAttribute("aria-current", "page");
+        else tab.removeAttribute("aria-current");
+      });
+    }
+
+    let latestLoad = 0;
+
+    async function showProgram(program) {
+      const load = ++latestLoad;
       const status = document.getElementById("status");
+      resetPage(program);
+      status.textContent = "読み込み中です。";
+      status.hidden = false;
       try {
-        const res = await fetch(CSV_PATH, { cache: "no-cache" });
+        const res = await fetch(program.csv, { cache: "no-cache" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const text = (await res.text()).replace(/^﻿/, "");
-        const [header, ...records] = parseCsv(text);
-        const rows = records.map((cells, index) => ({ cells, index }));
+        // 読み込み中に別の番組へ切り替えていたら、この結果は捨てる。
+        if (load !== latestLoad) return;
+        const [allColumns, ...records] = parseCsv(text);
+        const shownColumns = allColumns.flatMap((name, i) => (program.hiddenColumns?.includes(name) ? [] : [i]));
+        const header = shownColumns.map((i) => allColumns[i]);
+        const rows = records.map((cells, index) => ({ cells: shownColumns.map((i) => cells[i]), index }));
         const filters = header.map(() => "");
         const sort = { column: null, direction: 1 };
         const render = () => renderTable(header, rows, filters, sort);
@@ -274,13 +340,13 @@
           );
         });
 
-        document.getElementById("reset").addEventListener("click", () => {
+        document.getElementById("reset").onclick = () => {
           filters.fill("");
           sort.column = null;
           sort.direction = 1;
           document.querySelectorAll("#filters input, #filters select").forEach((control) => { control.value = ""; });
           render();
-        });
+        };
 
         const dateColumn = header.indexOf("オンエア日");
         document.getElementById("period").textContent =
@@ -291,11 +357,22 @@
         document.getElementById("filters-card").hidden = false;
         status.hidden = true;
       } catch (error) {
-        status.textContent = `一覧を読み込めませんでした（${error.message}）。`;
+        if (load === latestLoad) status.textContent = `一覧を読み込めませんでした（${error.message}）。`;
       }
     }
 
-    main();
+    function showCurrentProgram() {
+      showProgram(PROGRAMS.find((program) => `#${program.id}` === location.hash) ?? PROGRAMS[0]);
+    }
+
+    for (const program of PROGRAMS) {
+      const tab = document.createElement("a");
+      tab.href = `#${program.id}`;
+      tab.textContent = program.tab;
+      document.getElementById("tabs").append(tab);
+    }
+    window.addEventListener("hashchange", showCurrentProgram);
+    showCurrentProgram();
   </script>
 </body>
 </html>
