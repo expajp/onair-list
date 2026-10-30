@@ -17,7 +17,10 @@ import unicodedata
 import urllib.parse
 import urllib.request
 
-CSV_URL = "https://expajp.github.io/onair-list/data/onair_songs.csv"
+CSV_URLS = {
+    "odoriba": "https://expajp.github.io/onair-list/data/onair_songs.csv",
+    "ann0": "https://expajp.github.io/onair-list/data/magical_lovely_ann0_songs.csv",
+}
 SEARCH_URL = "https://itunes.apple.com/search"
 USER_AGENT = "onair-list-apple-music"
 # 公開 API は1分あたり20回程度までとされている。
@@ -57,15 +60,16 @@ def load_songs(source):
 def select_songs(rows, start, selector):
     songs, seen = [], set()
     for row in rows:
-        number = int(re.match(r"#(\d+)", row["タイトル"]).group(1))
-        if number < start or not row["曲名"]:
+        # 単発放送はレギュラー放送の #1 より前なので、0回目として扱う。
+        special, number = re.match(r"(単発)?#(\d+)", row["タイトル"]).groups()
+        if (0 if special else int(number)) < start or not row["曲名"]:
             continue
         if selector != "すべて" and row["選曲者"] != selector:
             continue
         identity = (key(row["アーティスト名"]), key(row["曲名"]))
         if identity not in seen:
             seen.add(identity)
-            songs.append((number, row["アーティスト名"], row["曲名"]))
+            songs.append((row["タイトル"].split()[0], row["アーティスト名"], row["曲名"]))
     return songs
 
 
@@ -116,26 +120,27 @@ def main():
     parser.add_argument("--from", dest="start", type=int, required=True, help="この回以降を対象にする")
     parser.add_argument("--selector", required=True, help="選曲者。「すべて」で全員を対象にする")
     parser.add_argument("--existing", help="プレイリストの曲名とアーティスト名のタブ区切りファイル")
-    parser.add_argument("--csv", default=CSV_URL)
+    parser.add_argument("--program", choices=CSV_URLS, default="odoriba")
+    parser.add_argument("--csv", help="番組の公開 CSV の代わりに読み込む CSV")
     args = parser.parse_args()
 
-    songs = select_songs(load_songs(args.csv), args.start, args.selector)
+    songs = select_songs(load_songs(args.csv or CSV_URLS[args.program]), args.start, args.selector)
     existing = read_existing(args.existing)
     writer = csv.writer(sys.stdout, delimiter="\t", lineterminator="\n", quoting=csv.QUOTE_NONE, escapechar="\\")
-    for index, (number, artist, title) in enumerate(songs):
+    for index, (episode, artist, title) in enumerate(songs):
         if in_playlist(existing, artist, title):
-            writer.writerow(["exists", number, artist, title, "", "", ""])
+            writer.writerow(["exists", episode, artist, title, "", "", ""])
             continue
         if index:
             time.sleep(SEARCH_INTERVAL)
         match = best_match(artist, title)
         if match and in_playlist(existing, match["artistName"], match["trackName"]):
-            writer.writerow(["exists", number, artist, title, "", match["trackName"], match["artistName"]])
+            writer.writerow(["exists", episode, artist, title, "", match["trackName"], match["artistName"]])
         elif match:
             url = match["trackViewUrl"].split("&uo=")[0]
-            writer.writerow(["found", number, artist, title, url, match["trackName"], match["artistName"]])
+            writer.writerow(["found", episode, artist, title, url, match["trackName"], match["artistName"]])
         else:
-            writer.writerow(["not_found", number, artist, title, "", "", ""])
+            writer.writerow(["not_found", episode, artist, title, "", "", ""])
         sys.stdout.flush()
 
 

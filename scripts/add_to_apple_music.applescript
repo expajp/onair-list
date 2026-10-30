@@ -1,16 +1,19 @@
 -- 指定した回以降のオンエア曲を、Apple Music のプレイリストへ追加する。
 -- カタログの検索は find_apple_music_tracks.py が行い、すでにある曲は追加しない。
 
-property selectorChoices : {"鈴木もぐら", "水川かたまり", "リスナー", "池田直人", "岡野陽一", "その他", "すべて"}
+property programs : {¬
+	{programId:"odoriba", programName:"空気階段の踊り場", firstEpisode:206, episodeHint:"", selectorChoices:{"鈴木もぐら", "水川かたまり", "リスナー", "池田直人", "岡野陽一", "その他", "すべて"}}, ¬
+	{programId:"ann0", programName:"マヂカルラブリーのオールナイトニッポン0(ZERO)", firstEpisode:0, episodeHint:"0を指定すると単発放送の3回も含みます。", selectorChoices:{"野田クリスタル", "村上", "その他", "すべて"}}}
 property pageWait : 4
 property maxSkips : 60
 property libraryLeftovers : {}
 
 on run
 	set libraryLeftovers to {}
-	set startEpisode to askEpisode()
-	set selectorName to askSelector()
-	set playlistName to askPlaylist()
+	set program to askProgram()
+	set startEpisode to askEpisode(program)
+	set selectorName to askSelector(program)
+	set playlistName to askPlaylist(program)
 
 	set tempFolder to POSIX path of (path to temporary items)
 	set existingPath to tempFolder & "onair_existing.tsv"
@@ -18,7 +21,7 @@ on run
 
 	set finderPath to scriptFolder() & "find_apple_music_tracks.py"
 	set searchCommand to "PYTHONIOENCODING=utf-8 /usr/bin/python3 " & quoted form of finderPath & ¬
-		" --from " & startEpisode & " --selector " & quoted form of selectorName & ¬
+		" --program " & programId of program & " --from " & startEpisode & " --selector " & quoted form of selectorName & ¬
 		" --existing " & quoted form of existingPath
 	with timeout of 7200 seconds
 		set searchResult to do shell script searchCommand
@@ -34,7 +37,7 @@ on run
 			if status is "found" then
 				set end of foundItems to fields
 			else if status is "not_found" then
-				set end of missingItems to ("#" & item 2 of fields & " " & item 3 of fields & " / " & item 4 of fields)
+				set end of missingItems to (item 2 of fields & " " & item 3 of fields & " / " & item 4 of fields)
 			else
 				set existingCount to existingCount + 1
 			end if
@@ -61,7 +64,7 @@ on run
 	end tell
 	try
 		repeat with fields in foundItems
-			set label to "#" & item 2 of fields & " " & item 3 of fields & " / " & item 4 of fields
+			set label to item 2 of fields & " " & item 3 of fields & " / " & item 4 of fields
 			if addTrack(item 5 of fields, item 6 of fields, item 7 of fields, playlistName) then
 				set end of addedItems to label
 			else
@@ -78,25 +81,38 @@ on run
 	showReport(playlistName, addedItems, failedItems, missingItems, existingCount)
 end run
 
-on askEpisode()
+on askProgram()
+	set names to {}
+	repeat with program in programs
+		set end of names to programName of program
+	end repeat
+	set picked to choose from list names with prompt "番組を選んでください。" default items {item 1 of names}
+	if picked is false then error number -128
+	repeat with program in programs
+		if programName of program is item 1 of picked then return contents of program
+	end repeat
+end askProgram
+
+on askEpisode(program)
+	set minimum to firstEpisode of program
 	repeat
-		set answer to text returned of (display dialog "何回以降の曲を追加しますか？" default answer "206" buttons {"キャンセル", "次へ"} default button "次へ" cancel button "キャンセル")
+		set answer to text returned of (display dialog "何回以降の曲を追加しますか？" & return & episodeHint of program default answer (minimum as text) buttons {"キャンセル", "次へ"} default button "次へ" cancel button "キャンセル")
 		try
 			set episode to answer as integer
-			if episode ≥ 206 then return episode
+			if episode ≥ minimum then return episode
 		end try
-		display dialog "206以上の回番号を入力してください。" buttons {"OK"} default button "OK"
+		display dialog (minimum as text) & "以上の回番号を入力してください。" buttons {"OK"} default button "OK"
 	end repeat
 end askEpisode
 
-on askSelector()
-	set picked to choose from list selectorChoices with prompt "選曲者を選んでください。" default items {item 1 of selectorChoices}
+on askSelector(program)
+	set picked to choose from list (selectorChoices of program) with prompt "選曲者を選んでください。" default items {item 1 of selectorChoices of program}
 	if picked is false then error number -128
 	return item 1 of picked
 end askSelector
 
-on askPlaylist()
-	set answer to text returned of (display dialog "追加先のプレイリスト名を入力してください。" default answer "空気階段の踊り場" buttons {"キャンセル", "次へ"} default button "次へ" cancel button "キャンセル")
+on askPlaylist(program)
+	set answer to text returned of (display dialog "追加先のプレイリスト名を入力してください。" default answer (programName of program) buttons {"キャンセル", "次へ"} default button "次へ" cancel button "キャンセル")
 	tell application "Music"
 		if not (exists user playlist answer) then
 			display dialog "「" & answer & "」はありません。新しく作りますか？" buttons {"キャンセル", "作成する"} default button "作成する" cancel button "キャンセル"
