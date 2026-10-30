@@ -4,8 +4,10 @@
 property selectorChoices : {"鈴木もぐら", "水川かたまり", "リスナー", "池田直人", "岡野陽一", "その他", "すべて"}
 property pageWait : 4
 property maxSkips : 60
+property libraryLeftovers : {}
 
 on run
+	set libraryLeftovers to {}
 	set startEpisode to askEpisode()
 	set selectorName to askSelector()
 	set playlistName to askPlaylist()
@@ -45,7 +47,7 @@ on run
 	end if
 
 	display dialog ((count of foundItems) as text) & "曲を「" & playlistName & "」へ追加します。" & return & ¬
-		"曲はライブラリにも追加されます。再生中の曲は止まります。" & return & ¬
+		"曲はライブラリを経由して追加し、追加後にライブラリから削除します。元からある曲は削除しません。" & return & "再生中の曲は止まります。" & return & ¬
 		"追加中は Music アプリを操作しないでください。音量は処理の間だけ0にします。" buttons {"キャンセル", "追加する"} default button "追加する" cancel button "キャンセル"
 
 	set addedItems to {}
@@ -122,12 +124,15 @@ end writeExisting
 
 -- Music アプリにはカタログの曲を直接追加する命令がない。
 -- 購読曲は再生中の曲をライブラリへ複製できるので、ライブラリを経由して追加する。
+-- 新しく入れた曲はプレイリストへ入れたあとでライブラリから消す。元からある曲は消さない。
 on addTrack(trackUrl, expectedName, expectedArtist, playlistName)
+	set addedToLibrary to false
 	try
 		set libraryTrack to findInLibrary(expectedName, expectedArtist)
 		if libraryTrack is missing value then
 			if not playCatalogTrack(trackUrl, expectedName) then return false
 			tell application "Music"
+				set countBefore to count of tracks of library playlist 1
 				set librarySource to first source whose kind is library
 				duplicate current track to librarySource
 				stop
@@ -138,14 +143,30 @@ on addTrack(trackUrl, expectedName, expectedArtist, playlistName)
 				delay 1
 			end repeat
 			if libraryTrack is missing value then return false
+			-- 検索の遅れで元からある曲を消さないよう、曲数が増えたときだけ削除の対象にする。
+			tell application "Music" to set addedToLibrary to (count of tracks of library playlist 1) > countBefore
 		end if
-		tell application "Music" to duplicate libraryTrack to user playlist playlistName
-		return true
+		tell application "Music"
+			set trackId to persistent ID of libraryTrack
+			duplicate libraryTrack to user playlist playlistName
+		end tell
 	on error
 		tell application "Music" to stop
 		return false
 	end try
+	if addedToLibrary then removeFromLibrary(trackId, expectedName & " / " & expectedArtist)
+	return true
 end addTrack
+
+on removeFromLibrary(trackId, label)
+	try
+		tell application "Music"
+			delete (first track of library playlist 1 whose persistent ID is trackId)
+		end tell
+	on error
+		set end of libraryLeftovers to label
+	end try
+end removeFromLibrary
 
 on findInLibrary(expectedName, expectedArtist)
 	tell application "Music"
@@ -180,10 +201,12 @@ on showReport(playlistName, addedItems, failedItems, missingItems, existingCount
 		"追加: " & (count of addedItems) & "曲" & return & ¬
 		"すでにあるため省略: " & existingCount & "曲" & return & ¬
 		"追加に失敗: " & (count of failedItems) & "曲" & return & ¬
-		"Apple Music で見つからない: " & (count of missingItems) & "曲"
+		"Apple Music で見つからない: " & (count of missingItems) & "曲" & return & ¬
+		"ライブラリから削除できなかった: " & (count of libraryLeftovers) & "曲"
 	set details to body & return & return & "追加した曲" & return & joinText(addedItems, return) & ¬
 		return & return & "追加に失敗した曲" & return & joinText(failedItems, return) & ¬
-		return & return & "見つからなかった曲" & return & joinText(missingItems, return)
+		return & return & "見つからなかった曲" & return & joinText(missingItems, return) & ¬
+		return & return & "ライブラリから削除できなかった曲" & return & joinText(libraryLeftovers, return)
 	set reportPath to (POSIX path of (path to temporary items)) & "onair_report.txt"
 	set fileHandle to open for access (POSIX file reportPath) with write permission
 	set eof fileHandle to 0
