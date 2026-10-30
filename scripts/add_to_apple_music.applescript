@@ -3,6 +3,7 @@
 
 property selectorChoices : {"鈴木もぐら", "水川かたまり", "リスナー", "池田直人", "岡野陽一", "その他", "すべて"}
 property pageWait : 4
+property maxSkips : 60
 
 on run
 	set startEpisode to askEpisode()
@@ -44,18 +45,33 @@ on run
 	end if
 
 	display dialog ((count of foundItems) as text) & "曲を「" & playlistName & "」へ追加します。" & return & ¬
-		"追加中は Music アプリを操作しないでください。" buttons {"キャンセル", "追加する"} default button "追加する" cancel button "キャンセル"
+		"曲はライブラリにも追加されます。再生中の曲は止まります。" & return & ¬
+		"追加中は Music アプリを操作しないでください。音量は処理の間だけ0にします。" buttons {"キャンセル", "追加する"} default button "追加する" cancel button "キャンセル"
 
 	set addedItems to {}
 	set failedItems to {}
-	repeat with fields in foundItems
-		set label to "#" & item 2 of fields & " " & item 3 of fields & " / " & item 4 of fields
-		if addTrack(item 5 of fields, item 6 of fields, playlistName) then
-			set end of addedItems to label
-		else
-			set end of failedItems to label
-		end if
-	end repeat
+	tell application "Music"
+		set savedVolume to sound volume
+		set savedShuffle to shuffle enabled
+		stop
+		set shuffle enabled to false
+		set sound volume to 0
+	end tell
+	try
+		repeat with fields in foundItems
+			set label to "#" & item 2 of fields & " " & item 3 of fields & " / " & item 4 of fields
+			if addTrack(item 5 of fields, item 6 of fields, item 7 of fields, playlistName) then
+				set end of addedItems to label
+			else
+				set end of failedItems to label
+			end if
+		end repeat
+	end try
+	tell application "Music"
+		stop
+		set sound volume to savedVolume
+		set shuffle enabled to savedShuffle
+	end tell
 
 	showReport(playlistName, addedItems, failedItems, missingItems, existingCount)
 end run
@@ -105,24 +121,59 @@ on writeExisting(playlistName, filePath)
 end writeExisting
 
 -- Music アプリにはカタログの曲を直接追加する命令がない。
--- 曲のページを開き、選択された曲をプレイリストへ複製する。
-on addTrack(trackUrl, expectedName, playlistName)
-	set musicUrl to "itmss" & text 6 thru -1 of trackUrl
+-- 購読曲は再生中の曲をライブラリへ複製できるので、ライブラリを経由して追加する。
+on addTrack(trackUrl, expectedName, expectedArtist, playlistName)
 	try
-		tell application "Music"
-			activate
-			open location musicUrl
-			delay pageWait
-			set picked to selection
-			if (count of picked) is 0 then return false
-			if name of item 1 of picked is not expectedName then return false
-			duplicate item 1 of picked to user playlist playlistName
-		end tell
+		set libraryTrack to findInLibrary(expectedName, expectedArtist)
+		if libraryTrack is missing value then
+			if not playCatalogTrack(trackUrl, expectedName) then return false
+			tell application "Music"
+				set librarySource to first source whose kind is library
+				duplicate current track to librarySource
+				stop
+			end tell
+			repeat 10 times
+				set libraryTrack to findInLibrary(expectedName, expectedArtist)
+				if libraryTrack is not missing value then exit repeat
+				delay 1
+			end repeat
+			if libraryTrack is missing value then return false
+		end if
+		tell application "Music" to duplicate libraryTrack to user playlist playlistName
 		return true
 	on error
+		tell application "Music" to stop
 		return false
 	end try
 end addTrack
+
+on findInLibrary(expectedName, expectedArtist)
+	tell application "Music"
+		set found to (search library playlist 1 for expectedName only songs)
+		repeat with candidate in found
+			if name of candidate is expectedName and artist of candidate is expectedArtist then return contents of candidate
+		end repeat
+	end tell
+	return missing value
+end findInLibrary
+
+-- 曲の URL を開いて再生するとアルバムの先頭から始まるので、目的の曲まで送る。
+on playCatalogTrack(trackUrl, expectedName)
+	set songId to text ((offset of "?i=" in trackUrl) + 3) thru -1 of trackUrl
+	tell application "Music"
+		open location "music://music.apple.com/jp/song/" & songId
+		delay pageWait
+		play
+		delay 2
+		repeat maxSkips times
+			if name of current track is expectedName then return true
+			next track
+			delay 1
+		end repeat
+		stop
+	end tell
+	return false
+end playCatalogTrack
 
 on showReport(playlistName, addedItems, failedItems, missingItems, existingCount)
 	set body to "プレイリスト: " & playlistName & return & ¬
