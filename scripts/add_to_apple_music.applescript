@@ -207,14 +207,21 @@ on showReport(playlistName, addedItems, failedItems, missingItems, existingCount
 		return & return & "追加に失敗した曲" & return & joinText(failedItems, return) & ¬
 		return & return & "見つからなかった曲" & return & joinText(missingItems, return) & ¬
 		return & return & "ライブラリから削除できなかった曲" & return & joinText(libraryLeftovers, return)
-	set reportPath to (POSIX path of (path to temporary items)) & "onair_report.txt"
-	set fileHandle to open for access (POSIX file reportPath) with write permission
-	set eof fileHandle to 0
-	write details to fileHandle as «class utf8»
-	close access fileHandle
+	set reportPath to writeReport(details)
 	display dialog body buttons {"詳細を開く", "閉じる"} default button "閉じる"
 	if button returned of result is "詳細を開く" then do shell script "open " & quoted form of reportPath
 end showReport
+
+-- 結果は scripts/results/ に日時つきの名前で残す。
+on writeReport(details)
+	set resultsFolder to scriptFolder() & "results/"
+	do shell script "mkdir -p " & quoted form of resultsFolder
+	set reportPath to resultsFolder & "onair_report_" & (do shell script "date +%Y%m%d_%H%M%S") & ".txt"
+	set fileHandle to open for access (POSIX file reportPath) with write permission
+	write details to fileHandle as «class utf8»
+	close access fileHandle
+	return reportPath
+end writeReport
 
 on scriptFolder()
 	set scriptPath to POSIX path of (path to me)
