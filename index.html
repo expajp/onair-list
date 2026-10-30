@@ -3,83 +3,156 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="TBSラジオ「空気階段の踊り場」で流れた曲の記録">
 <title>空気階段の踊り場 オンエア曲一覧</title>
 <style>
   :root {
-    color-scheme: light dark;
-    --bg: #ffffff;
-    --fg: #1f2328;
-    --muted: #656d76;
-    --line: #d8dee4;
-    --head: #f6f8fa;
+    --bg: #f6f6f3;
+    --surface: #fff;
+    --text: #1c1c1a;
+    --text-muted: #6b6b66;
+    --border: #e2e1dc;
+    --accent: #c2410c;
+    --row-hover: #f3f2ee;
+    color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #0d1117;
-      --fg: #e6edf3;
-      --muted: #8d96a0;
-      --line: #30363d;
-      --head: #161b22;
+      --bg: #161615;
+      --surface: #1f1f1d;
+      --text: #ecebe6;
+      --text-muted: #a3a29b;
+      --border: #34332f;
+      --accent: #fb923c;
+      --row-hover: #2a2926;
+      color-scheme: dark;
     }
   }
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    padding: 24px 16px;
     background: var(--bg);
-    color: var(--fg);
+    color: var(--text);
     font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
-    line-height: 1.5;
+    font-size: 15px;
+    line-height: 1.6;
   }
-  h1 { margin: 0 0 16px; font-size: 1.4rem; }
-  #status { color: var(--muted); }
-  .scroll { overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-  th, td {
-    padding: 8px 10px;
-    border-bottom: 1px solid var(--line);
-    text-align: left;
-    vertical-align: top;
+  button, input, select { font: inherit; color: inherit; }
+  input, select {
+    min-width: 0;
+    padding: 4px 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
   }
-  th { background: var(--head); white-space: nowrap; }
-  td.date { white-space: nowrap; font-variant-numeric: tabular-nums; }
-  td.selector { white-space: nowrap; }
-  th button {
-    all: unset;
+  .page { max-width: 1040px; margin: 0 auto; padding: 24px 16px 48px; }
+  .header h1 { margin: 0; font-size: 1.6rem; }
+  .lead { margin: 4px 0 20px; color: var(--text-muted); }
+  .note { display: block; font-size: 0.85rem; }
+  .card {
+    margin-bottom: 16px;
+    padding: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .card[hidden] { display: none; }
+  .card-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .card-head h2 { margin: 0; font-size: 1.1rem; }
+  .filters { display: grid; gap: 14px; }
+  .filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+  }
+  .filter-grid label { display: grid; gap: 4px; font-weight: 600; }
+  .filter-grid input, .filter-grid select { width: 100%; font-weight: 400; }
+  .filter-actions { display: flex; }
+  button.link {
+    margin-left: auto;
+    padding: 0;
+    background: none;
+    border: none;
+    color: var(--accent);
     cursor: pointer;
+  }
+  .muted { margin: 0; color: var(--text-muted); font-size: 0.85rem; }
+  .message { margin: 8px 0; color: var(--text-muted); }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    white-space: nowrap;
+  }
+  td.wrap { min-width: 8em; white-space: normal; }
+  td.date { font-variant-numeric: tabular-nums; }
+  th button {
+    padding: 0;
+    background: none;
+    border: none;
     font-weight: 600;
+    cursor: pointer;
   }
-  th button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
-  .filters th { background: var(--bg); font-weight: 400; }
-  .filters input, .filters select {
-    width: 100%;
-    min-width: 7em;
-    padding: 4px 6px;
-    border: 1px solid var(--line);
-    border-radius: 4px;
-    background: var(--bg);
-    color: var(--fg);
-    font: inherit;
+  th button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .sort-mark {
+    display: inline-block;
+    width: 1em;
+    color: var(--accent);
+    font-size: 0.7rem;
   }
-  #count { margin: 0 0 8px; color: var(--muted); font-size: 0.9rem; }
+  tbody tr:hover { background: var(--row-hover); }
 </style>
 </head>
 <body>
-  <h1>空気階段の踊り場 オンエア曲一覧</h1>
-  <p id="status">読み込み中です。</p>
-  <p id="count" hidden></p>
-  <div class="scroll">
-    <table hidden>
-      <thead>
-        <tr id="head"></tr>
-        <tr id="filters" class="filters"></tr>
-      </thead>
-      <tbody id="body"></tbody>
-    </table>
+  <div class="page">
+    <header class="header">
+      <h1>空気階段の踊り場 オンエア曲一覧</h1>
+      <p class="lead">
+        TBSラジオ「空気階段の踊り場」で流れた曲の記録
+        <span class="note" id="period"></span>
+      </p>
+    </header>
+
+    <section class="card filters" id="filters-card" hidden>
+      <div class="filter-grid" id="filters"></div>
+      <div class="filter-actions">
+        <button class="link" id="reset" type="button">条件をリセット</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>曲の一覧</h2>
+        <p class="muted" id="count"></p>
+      </div>
+      <p class="message" id="status">読み込み中です。</p>
+      <div class="table-wrap">
+        <table hidden>
+          <thead><tr id="head"></tr></thead>
+          <tbody id="body"></tbody>
+        </table>
+      </div>
+    </section>
   </div>
+
   <script>
     // CSV を更新するだけで一覧へ反映されるよう、表示時に読み込む。
     const CSV_PATH = "data/onair_songs.csv";
+    // プルダウンで絞り込む列。その他の列は文字の部分一致で絞り込む。
+    const SELECT_COLUMNS = new Set(["選曲者"]);
+    const NOWRAP_COLUMNS = new Set(["オンエア日", "選曲者"]);
+    const BLANK = "\u0000blank";
+    const collator = new Intl.Collator("ja", { numeric: true, sensitivity: "base" });
+    const normalize = (value) => value.normalize("NFKC").toLowerCase();
 
     function parseCsv(text) {
       const rows = [];
@@ -100,12 +173,6 @@
       if (cell !== "" || row.length > 0) { row.push(cell); rows.push(row); }
       return rows;
     }
-
-    // プルダウンで絞り込む列。その他の列は文字の部分一致で絞り込む。
-    const SELECT_COLUMNS = new Set(["選曲者"]);
-    const BLANK = "\u0000blank";
-    const collator = new Intl.Collator("ja", { numeric: true, sensitivity: "base" });
-    const normalize = (value) => value.normalize("NFKC").toLowerCase();
 
     function renderTable(header, rows, filters, sort) {
       const shown = rows.filter((row) => filters.every((filter, i) => {
@@ -132,37 +199,40 @@
         row.cells.forEach((value, i) => {
           const td = document.createElement("td");
           td.textContent = value;
+          if (!NOWRAP_COLUMNS.has(header[i])) td.className = "wrap";
           if (header[i] === "オンエア日") td.className = "date";
-          if (header[i] === "選曲者") td.className = "selector";
           tr.append(td);
         });
         fragment.append(tr);
       }
       document.getElementById("body").replaceChildren(fragment);
-      document.getElementById("count").textContent = `${rows.length}件中 ${shown.length}件を表示`;
+      document.getElementById("count").textContent =
+        shown.length === rows.length ? `${rows.length}件` : `${rows.length}件中 ${shown.length}件`;
 
       document.querySelectorAll("#head th").forEach((th, i) => {
         const active = sort.column === i;
         th.setAttribute("aria-sort", active ? (sort.direction > 0 ? "ascending" : "descending") : "none");
-        th.querySelector("button").textContent = header[i] + (active ? (sort.direction > 0 ? " ▲" : " ▼") : "");
+        th.querySelector(".sort-mark").textContent = active ? (sort.direction > 0 ? "▲" : "▼") : "";
       });
     }
 
     function buildFilter(name, values, onChange) {
+      const label = document.createElement("label");
+      label.textContent = name;
+      let control;
       if (SELECT_COLUMNS.has(name)) {
-        const select = document.createElement("select");
-        select.setAttribute("aria-label", `${name}で絞り込む`);
+        control = document.createElement("select");
         const options = [["", "すべて"], ...[...new Set(values)].filter(Boolean).map((v) => [v, v]), [BLANK, "（空欄）"]];
-        for (const [value, label] of options) select.add(new Option(label, value));
-        select.addEventListener("change", () => onChange(select.value));
-        return select;
+        for (const [value, text] of options) control.add(new Option(text, value));
+        control.addEventListener("change", () => onChange(control.value));
+      } else {
+        control = document.createElement("input");
+        control.type = "search";
+        control.placeholder = "入力すると絞り込みます";
+        control.addEventListener("input", () => onChange(control.value.trim()));
       }
-      const input = document.createElement("input");
-      input.type = "search";
-      input.placeholder = "絞り込み";
-      input.setAttribute("aria-label", `${name}で絞り込む`);
-      input.addEventListener("input", () => onChange(input.value.trim()));
-      return input;
+      label.append(control);
+      return label;
     }
 
     async function main() {
@@ -170,7 +240,7 @@
       try {
         const res = await fetch(CSV_PATH, { cache: "no-cache" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const text = (await res.text()).replace(/^\uFEFF/, "");
+        const text = (await res.text()).replace(/^﻿/, "");
         const [header, ...records] = parseCsv(text);
         const rows = records.map((cells, index) => ({ cells, index }));
         const filters = header.map(() => "");
@@ -183,6 +253,9 @@
           const button = document.createElement("button");
           button.type = "button";
           button.title = `${name}で並べ替える`;
+          const mark = document.createElement("span");
+          mark.className = "sort-mark";
+          button.append(name, mark);
           button.addEventListener("click", () => {
             // 昇順、降順、元の順の順に切り替える。
             if (sort.column !== i) { sort.column = i; sort.direction = 1; }
@@ -193,17 +266,29 @@
           th.append(button);
           document.getElementById("head").append(th);
 
-          const cell = document.createElement("th");
-          cell.append(buildFilter(name, rows.map((row) => row.cells[i]), (value) => {
-            filters[i] = value;
-            render();
-          }));
-          document.getElementById("filters").append(cell);
+          document.getElementById("filters").append(
+            buildFilter(name, rows.map((row) => row.cells[i]), (value) => {
+              filters[i] = value;
+              render();
+            })
+          );
         });
+
+        document.getElementById("reset").addEventListener("click", () => {
+          filters.fill("");
+          sort.column = null;
+          sort.direction = 1;
+          document.querySelectorAll("#filters input, #filters select").forEach((control) => { control.value = ""; });
+          render();
+        });
+
+        const dateColumn = header.indexOf("オンエア日");
+        document.getElementById("period").textContent =
+          `記録の期間：${rows[0].cells[dateColumn]} 〜 ${rows[rows.length - 1].cells[dateColumn]}`;
 
         render();
         document.querySelector("table").hidden = false;
-        document.getElementById("count").hidden = false;
+        document.getElementById("filters-card").hidden = false;
         status.hidden = true;
       } catch (error) {
         status.textContent = `一覧を読み込めませんでした（${error.message}）。`;
