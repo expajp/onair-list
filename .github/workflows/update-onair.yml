@@ -1,0 +1,84 @@
+name: オンエア曲を更新
+
+on:
+  schedule:
+    # 毎週火曜12:00（日本時間）。月曜深夜の放送後に実行する。
+    - cron: "0 3 * * 2"
+  workflow_dispatch:
+    inputs:
+      check_episode:
+        description: 判定だけを確認する回番号。空なら通常の更新を行う
+        required: false
+
+permissions:
+  contents: write
+  pages: write
+  pull-requests: write
+
+concurrency:
+  group: update-onair
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+
+      - name: RSS を取得する
+        run: curl -fsSL --retry 3 https://feeds.megaphone.fm/TBS2643761064 -o "$RUNNER_TEMP/rss.xml"
+
+      - name: 判定だけを確認する
+        if: inputs.check_episode != ''
+        env:
+          CHECK_EPISODE: ${{ inputs.check_episode }}
+          X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
+        run: python3 scripts/update_onair.py --rss "$RUNNER_TEMP/rss.xml" --check "$CHECK_EPISODE"
+
+      - name: 確認待ちの回を調べる
+        if: inputs.check_episode == ''
+        id: pending
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          skip=$(gh pr list --state open --json headRefName --jq '[.[].headRefName | select(startswith("update/onair-")) | ltrimstr("update/onair-") | select(test("^[0-9]+$"))] | join(",")')
+          echo "skip=$skip" >> "$GITHUB_OUTPUT"
+
+      - name: 一覧を更新する
+        if: inputs.check_episode == ''
+        id: update
+        env:
+          X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
+        run: |
+          python3 scripts/update_onair.py --rss "$RUNNER_TEMP/rss.xml" \
+            --skip "${{ steps.pending.outputs.skip }}" --body "$RUNNER_TEMP/pr_body.md"
+
+      - name: 問題なければ main に反映する
+        if: steps.update.outputs.mode == 'direct'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LABEL: ${{ steps.update.outputs.label }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/onair_songs.csv
+          git commit -m "feat: オンエア曲を更新（$LABEL）"
+          git push origin main
+          gh api -X POST "repos/$GITHUB_REPOSITORY/pages/builds"
+
+      - name: 確認が必要ならプルリクエストを作る
+        if: steps.update.outputs.mode == 'pr'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.update.outputs.branch }}
+          LABEL: ${{ steps.update.outputs.label }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git add data/onair_songs.csv
+          git commit -m "feat: オンエア曲を更新（$LABEL）"
+          git push origin "$BRANCH"
+          gh pr create --base main --head "$BRANCH" --title "オンエア曲の確認（$LABEL）" --body-file "$RUNNER_TEMP/pr_body.md"
