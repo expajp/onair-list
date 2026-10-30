@@ -81,4 +81,7 @@ jobs:
           git add data/onair_songs.csv
           git commit -m "feat: オンエア曲を更新（$LABEL）"
           git push origin "$BRANCH"
-          gh pr create --base main --head "$BRANCH" --title "オンエア曲の確認（$LABEL）" --body-file "$RUNNER_TEMP/pr_body.md"
+          # 担当者とレビュー依頼先にすると、GitHub からオーナーへ通知が届く。
+          gh pr create --base main --head "$BRANCH" --title "オンエア曲の確認（$LABEL）" \
+            --body-file "$RUNNER_TEMP/pr_body.md" \
+            --assignee "$GITHUB_REPOSITORY_OWNER" --reviewer "$GITHUB_REPOSITORY_OWNER"
