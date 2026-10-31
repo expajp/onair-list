@@ -124,9 +124,14 @@ on askPlaylist(program)
 end askPlaylist
 
 on writeExisting(playlistName, filePath)
+	set trackNames to {}
+	set trackArtists to {}
 	tell application "Music"
-		set trackNames to name of tracks of user playlist playlistName
-		set trackArtists to artist of tracks of user playlist playlistName
+		-- 空のプレイリストに name of tracks を使うとエラーになる。
+		if (count of tracks of user playlist playlistName) > 0 then
+			set trackNames to name of tracks of user playlist playlistName
+			set trackArtists to artist of tracks of user playlist playlistName
+		end if
 	end tell
 	set output to ""
 	repeat with i from 1 to count of trackNames
