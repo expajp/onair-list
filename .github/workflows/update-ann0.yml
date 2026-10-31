@@ -1,0 +1,78 @@
+name: マヂラブANN0のオンエア曲を更新
+
+on:
+  schedule:
+    # 毎週火曜12:10（日本時間）。金曜早朝の放送から7日以内に実行する。
+    - cron: "10 3 * * 2"
+  workflow_dispatch:
+    inputs:
+      check_date:
+        description: 判定だけを確認する放送日（YYYY-MM-DD）。空なら通常の更新を行う
+        required: false
+
+permissions:
+  contents: write
+  issues: write
+  pages: write
+
+# 踊り場の更新と同時に push しないよう、同じグループで順番に実行する。
+concurrency:
+  group: update-onair
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Anthropic SDK を入れる
+        run: python -m pip install anthropic==0.125.0
+
+      - name: 取得する時間帯を表示する
+        run: python scripts/update_ann0.py --stats
+
+      - name: 判定だけを確認する
+        if: inputs.check_date != ''
+        env:
+          CHECK_DATE: ${{ inputs.check_date }}
+          X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python scripts/update_ann0.py --check "$CHECK_DATE"
+
+      - name: 一覧を更新する
+        if: inputs.check_date == ''
+        id: update
+        env:
+          X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python scripts/update_ann0.py --body "$RUNNER_TEMP/issue_body.md"
+
+      - name: main に反映する
+        if: steps.update.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LABEL: ${{ steps.update.outputs.label }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/magical_lovely_ann0_songs.csv data/ann0_song_times.csv
+          git commit -m "feat: マヂラブANN0のオンエア曲を更新（$LABEL）"
+          git push origin main
+          gh api -X POST "repos/$GITHUB_REPOSITORY/pages/builds"
+
+      - name: 耳で確認する回を Issue にする
+        if: steps.update.outputs.review == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LABEL: ${{ steps.update.outputs.label }}
+        run: |
+          # 担当者にすると、GitHub からオーナーへ通知が届く。
+          gh issue create --title "マヂラブANN0の曲を確認（$LABEL）" \
+            --body-file "$RUNNER_TEMP/issue_body.md" --assignee "$GITHUB_REPOSITORY_OWNER"

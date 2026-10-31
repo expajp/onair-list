@@ -217,10 +217,10 @@ def decide_episode(posts, artists):
     return [{"selector": s, "artist": x["artist"], "title": x["title"]} for s, x in rows], reasons
 
 
-def fetch_posts(token, start, end):
+def fetch_posts(token, start, end, query=QUERY):
     """放送時間帯の投稿を取得する。読み取りは件数課金なので2ページで止める。"""
     params = {
-        "query": QUERY,
+        "query": query,
         "start_time": start.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "end_time": end.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "max_results": "100",
