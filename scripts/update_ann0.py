@@ -144,7 +144,7 @@ def decide_songs(posts, extracted):
         reasons.append("3時台の曲が見つかりませんでした")
     if len(selectors) != len(set(selectors)):
         reasons.append("同じ時間帯に複数の曲があります。推薦曲が混ざっていないか確認してください")
-    return songs, reasons
+    return sorted(songs, key=lambda song: song["time"]), reasons
 
 
 def build_update(rows, times, now, posts_for, extract):

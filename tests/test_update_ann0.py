@@ -62,6 +62,10 @@ class DecideSongsTest(unittest.TestCase):
         self.assertEqual([s["selector"] for s in songs], [a.NODA, a.MURAKAMI])
         self.assertEqual(reasons, [])
 
+    def test_noda_comes_first_whatever_the_extraction_order(self):
+        songs, _ = a.decide_songs(self.posts, [extracted("B", "y", 1), extracted("A", "x", 0)])
+        self.assertEqual([s["selector"] for s in songs], [a.NODA, a.MURAKAMI])
+
     def test_noda_only_needs_no_review(self):
         self.assertEqual(a.decide_songs(self.posts, [extracted("A", "x", 0)])[1], [])
 
