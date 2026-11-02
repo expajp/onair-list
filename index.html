@@ -49,6 +49,8 @@
   .header h1 { margin: 0; font-size: 1.6rem; }
   .lead { margin: 4px 0 20px; color: var(--text-muted); }
   .note { display: block; font-size: 0.85rem; }
+  .footer { margin-top: 24px; color: var(--text-muted); font-size: 0.75rem; }
+  .footer a { color: inherit; }
   .tabs {
     display: flex;
     gap: 4px;
@@ -133,7 +135,7 @@
 <body>
   <div class="page">
     <header class="header">
-      <h1 id="title"></h1>
+      <h1>オンエア曲一覧</h1>
       <p class="lead">
         <span id="lead"></span>
         <span class="note" id="caveat"></span>
@@ -163,6 +165,10 @@
         </table>
       </div>
     </section>
+
+    <footer class="footer">
+      <p>このサイトは<a href="https://x.com/expajp">@expajp</a> が独自にまとめたものです。番組および放送局とは一切関係ありません。同時に、このサイトの情報が正確であることは保証しません。</p>
+    </footer>
   </div>
 
   <script>
@@ -274,8 +280,6 @@
     }
 
     function resetPage(program) {
-      document.title = `${program.name} オンエア曲一覧`;
-      document.getElementById("title").textContent = `${program.name} オンエア曲一覧`;
       document.getElementById("lead").textContent = `${program.station}「${program.name}」で流れた曲の記録`;
       document.getElementById("caveat").textContent = program.caveat ?? "";
       document.getElementById("period").textContent = "";
