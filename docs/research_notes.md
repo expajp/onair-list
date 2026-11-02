@@ -249,9 +249,6 @@ X の検索は直近7日までなので、金曜の放送を翌週火曜に取�
 
 - **Apple Music:** 新しい回の分は `add_to_apple_music.applescript` で追加する。
 - **並び順:** 追加後に順番を整えたいときは `sort_apple_music_playlist.applescript` を実行する。
-- **プレイリストの移動:** 2026-11 の修正で選曲者が変わった次の曲は、プレイリストを手で移す。
-  - 村上へ: LINDBERG、Tokyo city、青春狂走曲、ビッグブリッヂの死闘、MAGIC
-  - 野田へ: Saturday Night
 
 ## ANN0 の残務
 
