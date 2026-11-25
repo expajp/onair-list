@@ -33,7 +33,9 @@ SEARCH_LIMIT = dt.timedelta(days=7)
 SIMILARITY = 0.6
 QUERY = (
     f"(from:{OFFICIAL} OR from:{LIVE_REPORTER}) "
-    '("1曲目" OR "１曲目" OR "一曲目" OR "2曲目" OR "２曲目" OR "二曲目" OR "3曲目" OR "３曲目" OR サイコゥ) '
+    '("1曲目" OR "１曲目" OR "一曲目" OR "2曲目" OR "２曲目" OR "二曲目" OR "3曲目" OR "３曲目" '
+    # X は日本語を単語に区切って照合する。引用符なしの サイコゥ は「サイコゥソング」に一致しない。
+    'OR "サイコゥソング" OR "サイコゥSong") '
     "-is:retweet"
 )
 LABEL_PATTERNS = (
@@ -255,6 +257,28 @@ def fetch_posts(token, start, end, query=QUERY):
     return posts
 
 
+def log_posts(start, end, posts, out=sys.stdout):
+    """取得した投稿と解析結果を Actions のログに出す。曲が取れない原因を後から追えるようにする。"""
+    print(f"::group::{start:%Y-%m-%d %H:%M}〜{end:%H:%M} の投稿 {len(posts)} 件", file=out)
+    found = set()
+    for post in sorted(posts, key=lambda p: p["time"]):
+        parsed = parse_post(post)
+        if parsed is None:
+            result = "曲の投稿ではない"
+        elif parsed.get("unparsed"):
+            result = f"{parsed['label']}: 曲名を解析できない"
+        else:
+            found.add(parsed["label"])
+            result = f"{parsed['label']}: {parsed['artist']} / {parsed['title']}"
+        account = OFFICIAL if post["official"] else LIVE_REPORTER
+        text = post["text"].replace("\n", " ⏎ ")
+        print(f"{post['time']:%H:%M} @{account} [{result}] {text}", file=out)
+    missing = [label for label in ("first", "second_half") if label not in found]
+    if missing:
+        print(f"曲が見つからなかった枠: {', '.join(missing)}", file=out)
+    print("::endgroup::", file=out)
+
+
 def build_update(rows, titles, now, posts_for, skip=frozenset()):
     """CSV の更新内容と、プルリクエストにする理由を返す。"""
     known = {row_number(row) for row in rows}
@@ -313,8 +337,11 @@ def main():
         token = os.environ.get("X_BEARER_TOKEN")
         if not token:
             sys.exit("X_BEARER_TOKEN が設定されていません")
-        return fetch_posts(token, start, end)
+        posts = fetch_posts(token, start, end)
+        log_posts(start, end, posts)
+        return posts
 
+    print(f"検索クエリ: {QUERY}")
     if args.check:
         artists = {key(row[3]) for row in rows if row[3]}
         posts = posts_for(*broadcast_window(args.check))

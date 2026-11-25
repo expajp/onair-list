@@ -1,4 +1,5 @@
 import datetime as dt
+import io
 import pathlib
 import sys
 import tempfile
@@ -122,6 +123,38 @@ class DecideTest(unittest.TestCase):
     def test_live_reversed_order_is_fixed_by_known_artist(self):
         rows, _ = self.selectors([post("今週の1曲目🎧\nもうがまんできない/JAGATARA", (0, 26))])
         self.assertEqual(rows[0][1:], ("JAGATARA", "もうがまんできない"))
+
+
+class QueryTest(unittest.TestCase):
+    def test_second_half_terms_are_quoted_phrases(self):
+        # 引用符なしの サイコゥ は X の単語区切りで「サイコゥソング」に一致しない（#501 で取りこぼした）。
+        self.assertIn('"サイコゥソング"', u.QUERY)
+        self.assertIn('"サイコゥSong"', u.QUERY)
+        self.assertNotIn(" サイコゥ)", u.QUERY)
+        self.assertNotIn("OR サイコゥ ", u.QUERY)
+
+
+class LogTest(unittest.TestCase):
+    def log(self, posts):
+        out = io.StringIO()
+        start, end = u.broadcast_window(498)
+        u.log_posts(start, end, posts, out)
+        return out.getvalue()
+
+    def test_logs_each_post_with_parse_result(self):
+        text = self.log([post(LIVE_SECOND, (0, 55)), post(OFFICIAL_FIRST, (0, 20), official=True), post("こどおじ〜", (0, 30))])
+        lines = text.splitlines()
+        self.assertEqual(lines[0], "::group::2026-11-03 00:00〜01:15 の投稿 3 件")
+        self.assertIn("00:20 @kuki_odoriba [first: エレファントカシマシ / 普通の日々]", lines[1])
+        self.assertIn("00:30 @i_love_arata [曲の投稿ではない] こどおじ〜", lines[2])
+        self.assertIn("[second_half: グループ魂 / 半日消防署長] 今週のサイコゥソング🎧 ⏎ ", lines[3])
+        self.assertNotIn("見つからなかった", text)
+        self.assertEqual(lines[-1], "::endgroup::")
+
+    def test_logs_missing_slots(self):
+        text = self.log([post(LIVE_FIRST, (0, 20))])
+        self.assertIn("曲が見つからなかった枠: second_half", text)
+        self.assertIn("曲が見つからなかった枠: first, second_half", self.log([]))
 
 
 class BuildTest(unittest.TestCase):
