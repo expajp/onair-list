@@ -164,11 +164,12 @@ def parse_post(post):
 def reconcile(official, live, artists):
     """同じ枠の公式と実況を1曲にまとめる。一致しなければ None を返す。"""
     if official and live:
-        if similar(official["title"], live["title"]) and similar(official["artist"], live["artist"]):
-            return {**official, "artist": live["artist"], "title": live["title"], "time": min(official["time"], live["time"])}
-        if similar(official["title"], live["artist"]) and similar(official["artist"], live["title"]):
-            return {**official, "artist": live["title"], "title": live["artist"], "time": min(official["time"], live["time"])}
-        return None
+        same = similar(official["title"], live["title"]) and similar(official["artist"], live["artist"])
+        swapped = similar(official["title"], live["artist"]) and similar(official["artist"], live["title"])
+        if not (same or swapped):
+            return None
+        # 実況は曲名を略すことがある（例: ゆらゆら帝国で考え中 → 考え中）ので、公式の表記を使う。
+        return {**official, "time": min(official["time"], live["time"])}
     song = official or live
     if not official and key(song["artist"]) not in artists and key(song["title"]) in artists:
         return {**song, "artist": song["title"], "title": song["artist"]}

@@ -82,6 +82,18 @@ class DecideTest(unittest.TestCase):
         )
         self.assertEqual(reasons, [])
 
+    def test_official_notation_wins_over_shortened_live(self):
+        official = "今週の１曲目は、、、\n\n♫ゆらゆら帝国で考え中／ゆらゆら帝国\n#odoriba954"
+        live = "今週の1曲目🎧\nゆらゆら帝国/考え中\n #odoriba954"
+        rows, reasons = self.selectors([post(live, (0, 13)), post(official, (0, 14), True)])
+        self.assertEqual(rows, [(u.MOGURA, "ゆらゆら帝国", "ゆらゆら帝国で考え中")])
+        self.assertEqual(reasons, [])
+
+    def test_official_notation_wins_when_live_is_reversed(self):
+        live = "今週の1曲目🎧\n普通の日々/エレファントカシマシ\n #odoriba954"
+        rows, _ = self.selectors([post(OFFICIAL_FIRST, (0, 39), True), post(live, (0, 38))])
+        self.assertEqual(rows, [(u.MOGURA, "エレファントカシマシ", "普通の日々")])
+
     def test_one_song_before_threshold_is_mogura(self):
         rows, reasons = self.selectors([post(LIVE_FIRST, (0, 39))])
         self.assertEqual(rows[0][0], u.MOGURA)
